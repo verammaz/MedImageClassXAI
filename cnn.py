@@ -221,7 +221,7 @@ def main():
 
     args = parser.parse_args()
 
-    CONFIG = {'batch_size': args.batch_size,
+    CONFIG = {'batch_size': int(args.batch_size),
               'n_epochs': int(args.n_epochs),
               'lr': args.lr,
               'img_size': args.img_size,
