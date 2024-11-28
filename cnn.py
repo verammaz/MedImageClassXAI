@@ -33,32 +33,45 @@ CONFIG = {}
 
 
 class SimpleCNN(nn.Module):
-    def __init__(self, image_channels, image_size, num_labels):
+    def __init__(self, num_labels=2):
         super(SimpleCNN, self).__init__()
 
-        self.layer_stack = nn.Sequential(
-            nn.Conv2d(image_channels, 64, kernel_size=3, stride=1, padding=1),
+        self.conv_stack = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2), 
+
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2),  # (H/2, W/2)
+            nn.MaxPool2d(2, 2),  
 
             nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2),  # (H/4, W/4)
+            nn.MaxPool2d(2, 2), 
 
             nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(256),
             nn.ReLU(),
-            nn.AdaptiveAvgPool2d(1),  # Global average pooling to (256, 1, 1)
+            nn.MaxPool2d(2, 2), 
+            nn.AdaptiveAvgPool2d(1), 
         )
-        self.fc = nn.Linear(256, num_labels)
+
+
+        self.linear_stack = nn.Sequential(
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(128, num_labels))
+
 
     def forward(self, x):
         x = x.to(next(self.parameters()).device)
-        x = self.layer_stack(x)
+        x = self.conv_stack(x)
         x = x.view(x.size(0), -1)  # Flatten
-        x = self.fc(x)
+        x = self.linear_stack(x)
         return x
 
 
@@ -169,20 +182,25 @@ def evaluate(model, dataloader, dataname, criterion, confusion_matrix=False):
 
 
 def get_image_transforms(config):
-    transforms = [T.ToTensor(),
-                T.Resize(min(config["img_size"][0], config["img_size"][1]), antialias=True),
-                T.CenterCrop(config["img_size"])]
-
-    transforms.append(T.Grayscale(num_output_channels=config["img_channels"])) 
-    transforms.append(T.RandomHorizontalFlip(p=0.5))
-    transforms.append(T.RandomRotation(10))
-    transforms.append(T.ColorJitter(brightness=0.2, contrast=0.2))
+    transforms_train = [T.RandomHorizontalFlip(),
+                T.RandomRotation(15),
+                T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+                T.Resize(config["img_size"]),
+                T.Grayscale(num_output_channels=1),  # Convert to grayscale (1 channel)
+                T.ToTensor()]
 
     if config["img_norm"]:
         # TODO: make more general --> calculate mean/std dynamically
-        transforms.append(T.Normalize(mean=[0.5519], std=[0.2131])) # stats of kaggle chest_xray data: paultimothymooney/chest-xray-pneumonia 
+        transforms_train.append(T.Normalize(mean=[0.5519], std=[0.2131])) # stats of kaggle chest_xray data: paultimothymooney/chest-xray-pneumonia 
 
-    return T.Compose(transforms)
+
+    transforms_common = [T.Grayscale(num_output_channels=1),  
+            T.Resize(config["img_size"]),
+            T.ToTensor(),
+            T.Normalize(mean=(0.5,), std=(0.5,))]
+    
+
+    return T.Compose(transforms_train), T.Compose(transforms_common)
 
 
 def get_dataset(data_dir, type, image_transforms):
@@ -207,7 +225,7 @@ def main():
     parser.add_argument('-data_dir', required=True, help='path to datasets')
     parser.add_argument('-v', action='store_true', help='verbose mode')
     parser.add_argument('-out_dir', default='out', help='path where to save trained model parameters')
-    parser.add_argument('-batch_size', default=64)
+    parser.add_argument('-batch_size', default=16)
     parser.add_argument('-n_epochs', default=8)
     parser.add_argument('-lr', default=0.001)
     parser.add_argument('-img_size', default=(256, 256))
@@ -220,16 +238,16 @@ def main():
               'n_epochs': int(args.n_epochs),
               'lr': args.lr,
               'img_size': args.img_size,
-              'img_norm': args.img_norm,
-              "img_channels": args.img_channels}
+              'img_norm': args.img_norm,}
 
     assert(num_labels==2) # model applicable for binary classification
 
-    image_transforms = get_image_transforms(CONFIG)
 
-    train_dataset = get_dataset(args.data_dir, 'train', image_transforms)
-    val_dataset = get_dataset(args.data_dir, 'val', image_transforms)
-    test_dataset = get_dataset(args.data_dir, 'test', image_transforms)
+    train_transforms, common_transforms = get_image_transforms(CONFIG)
+
+    train_dataset = get_dataset(args.data_dir, 'train', train_transforms)
+    val_dataset = get_dataset(args.data_dir, 'val', common_transforms)
+    test_dataset = get_dataset(args.data_dir, 'test', common_transforms)
 
     train_dataloader = get_dataloader(train_dataset, CONFIG["batch_size"])
     val_dataloader = get_dataloader(val_dataset, CONFIG["batch_size"])
@@ -245,10 +263,10 @@ def main():
         print("Labels               : ", train_dataset.class_to_idx)
         print("Image stats (mean, std): ", train_dataset[0][0].mean(), train_dataset[0][0].std())
 
-    model = SimpleCNN(CONFIG["img_channels"], CONFIG["img_size"], num_labels).to(DEVICE)
+    model = SimpleCNN(num_labels).to(DEVICE)
 
     if args.v:
-        summary(model, (CONFIG["img_channels"], CONFIG["img_size"][0], CONFIG["img_size"][1]))
+        summary(model, (1, CONFIG["img_size"][0], CONFIG["img_size"][1]))
 
     def init_weights(m):
         if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -259,9 +277,10 @@ def main():
     model.apply(init_weights)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=CONFIG["lr"])
+    optimizer = optim.AdamW(model.parameters(), lr=CONFIG["lr"], weight_decay=1e-5)
 
-    wandb.init(project="compmed")
+
+    wandb.init(project="compmed", group='SimpleCNN')
 
     os.makedirs(args.out_dir, exist_ok=True)
 
@@ -280,22 +299,23 @@ def main():
         wandb.log({"val_specificity": spec, "val_sensitivity": sens})
         print(f'Val Loss: {val_loss}, Val Accuracy: {val_acc}')
         
-        test_loss, test_acc, sens, spec = evaluate(model, test_dataloader, "Test", criterion)
-        wandb.log({"test_specificity": spec, "test_sensitivity": sens})
-        print(f'Test Loss: {test_loss}, Test Accuracy: {test_acc}')
+        #test_loss, test_acc, sens, spec = evaluate(model, test_dataloader, "Test", criterion)
+        #wandb.log({"test_specificity": spec, "test_sensitivity": sens})
+        #print(f'Test Loss: {test_loss}, Test Accuracy: {test_acc}')
         
         wandb.log({"epoch": t, "train_loss_": train_loss, 
                                 "val_loss_": val_loss, 
                                 "train_acc_": train_acc, 
                                 "val_acc_": val_acc, 
-                                "test_loss_": test_loss, 
-                                "test_acc_": test_acc})
+                                #"test_loss_": test_loss, 
+                                #"test_acc_": test_acc
+                                })
 
         # Save the best model based on validation accuracy or loss
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_val_acc = val_acc
-            torch.save(model.state_dict(), os.path.join(args.out_dir, "SimpleCNN_model.pth"))
+            torch.save(model.state_dict(), os.path.join(args.out_dir, f"SimpleCNN_lr{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}.pth"))
             print(f"Best model saved with Val Loss: {val_loss:.4f}, Val Accuracy: {val_acc:.4f}")
 
     print("Done!\n")
