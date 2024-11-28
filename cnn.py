@@ -206,7 +206,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-data_dir', required=True, help='path to datasets')
     parser.add_argument('-v', action='store_true', help='verbose mode')
-    parser.add_argument('-out_dir', defualt='out', help='path where to save trained model parameters')
+    parser.add_argument('-out_dir', default='out', help='path where to save trained model parameters')
     parser.add_argument('-batch_size', default=64)
     parser.add_argument('-n_epochs', default=8)
     parser.add_argument('-lr', default=0.001)
