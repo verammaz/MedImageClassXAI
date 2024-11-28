@@ -315,7 +315,7 @@ def main():
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_val_acc = val_acc
-            model_name = f"SimpleCNN_lr{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}"
+            model_name = f'SimpleCNN_lr{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}'
             torch.save(model.state_dict(), os.path.join(args.out_dir, f"{model_name}.pth"))
             print(f"Best model saved with Val Loss: {val_loss:.4f}, Val Accuracy: {val_acc:.4f}")
 
