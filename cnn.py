@@ -29,12 +29,7 @@ DEVICE = (
 )
 
 # Model configuration
-CONFIG = {"batch_size": 64,
-        "n_epochs": 8,
-        "learning_rate": 0.001,
-        "image_size": (256, 256),
-        "image_normalize": False,
-        }
+CONFIG = {}
 
 
 class SimpleCNN(nn.Module):
@@ -111,13 +106,12 @@ def train_one_epoch(model, dataloader, optimizer, criterion, t):
 
         wandb.log({"n_examples": (idx+1)*batch_size + size * t, "train_loss": loss, "train_accuracy": num_correct/(batch_size*(idx+1))*100})
 
-    #batch_bar.close()
+    batch_bar.close()
 
  
 
 
 def evaluate(model, dataloader, dataname, criterion, confusion_matrix=False):
-    size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
 
     model.eval()
@@ -157,7 +151,8 @@ def evaluate(model, dataloader, dataname, criterion, confusion_matrix=False):
 
             batch_bar.update()
 
-    #batch_bar.close()
+    batch_bar.close()
+
     acc = num_correct/(batch_size*(idx+1))*100
     avg_loss = total_loss/(idx+1)
 
@@ -211,7 +206,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-data_dir', required=True, help='path to datasets')
     parser.add_argument('-v', action='store_true', help='verbose mode')
-    parser.add_argument('-out_dir', help='path where to save trained model parameters')
+    parser.add_argument('-out_dir', defualt='out', help='path where to save trained model parameters')
     parser.add_argument('-batch_size', default=64)
     parser.add_argument('-n_epochs', default=8)
     parser.add_argument('-lr', default=0.001)
@@ -268,6 +263,10 @@ def main():
 
     wandb.init(project="compmed")
 
+    os.makedirs(args.out_dir, exist_ok=True)
+
+    best_val_loss = np.inf
+    best_val_acc = 0.0
 
     for t in range(CONFIG["n_epochs"]):
         print(f"\nEpoch {t+1}\n----------------------")
@@ -285,7 +284,19 @@ def main():
         wandb.log({"test_specificity": spec, "test_sensitivity": sens})
         print(f'Test Loss: {test_loss}, Test Accuracy: {test_acc}')
         
-        wandb.log({"epoch": t, "train_loss_": train_loss, "val_loss_": val_loss, "train_acc_": train_acc, "val_acc_": val_acc, "test_loss_": test_loss, "test_acc_": test_acc})
+        wandb.log({"epoch": t, "train_loss_": train_loss, 
+                                "val_loss_": val_loss, 
+                                "train_acc_": train_acc, 
+                                "val_acc_": val_acc, 
+                                "test_loss_": test_loss, 
+                                "test_acc_": test_acc})
+
+        # Save the best model based on validation accuracy or loss
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_val_acc = val_acc
+            torch.save(model.state_dict(), os.path.join(args.out_dir, "SimpleCNN_model.pth"))
+            print(f"Best model saved with Val Loss: {val_loss:.4f}, Val Accuracy: {val_acc:.4f}")
 
     print("Done!\n")
 
@@ -297,11 +308,6 @@ def main():
     print(f'Sensitivity: {sensitivity}, Specificity: {specificity}')
     wandb.log({"Sensitivity": sensitivity, "Specificity": specificity})
 
-    # Save the model
-    if args.out_dir is not None:
-        os.mkdirs(args.out_dir)
-        torch.save(model.state_dict(), os.path.join(args.out_dir, "model.pth"))
-        print("Saved PyTorch Model State to model.pth")
 
 if __name__ == "__main__":
     main()
