@@ -1,0 +1,8 @@
+{"time":"2024-11-27T19:35:15.348053-05:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2024-11-27T19:35:15.348074-05:00","level":"INFO","msg":"created symlink","path":"/Users/veramazeeva/Library/CloudStorage/OneDrive-Personal/Carnegie Mellon/CompMed/project/code/wandb/run-20241127_193515-5z0rf9qr/logs/debug-core.log"}
+{"time":"2024-11-27T19:35:15.456648-05:00","level":"INFO","msg":"created new stream","id":"5z0rf9qr"}
+{"time":"2024-11-27T19:35:15.456758-05:00","level":"INFO","msg":"stream: started","id":"5z0rf9qr"}
+{"time":"2024-11-27T19:35:15.456773-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"5z0rf9qr"}
+{"time":"2024-11-27T19:35:15.456829-05:00","level":"INFO","msg":"handler: started","stream_id":"5z0rf9qr"}
+{"time":"2024-11-27T19:35:15.456866-05:00","level":"INFO","msg":"sender: started","stream_id":"5z0rf9qr"}
+{"time":"2024-11-27T19:35:15.726549-05:00","level":"INFO","msg":"Starting system monitor"}

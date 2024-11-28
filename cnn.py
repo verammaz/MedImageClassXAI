@@ -13,7 +13,7 @@ from torchsummary import summary
 import matplotlib.pyplot as plt
 import numpy as np
 
-#wandb.login()
+wandb.login()
 
 # Global Variables
 img_size = (256, 256) # assuming square shape
@@ -31,12 +31,12 @@ DEVICE = (
 )
 
 # Model configuration
-CONFIG = {"batch_size": 8,
-        "epoch": 3,
-        "learning_rate": 0.01,
+CONFIG = {"batch_size": 64,
+        "n_epochs": 8,
+        "learning_rate": 0.001,
         "momentum": 0.9,
         "image_size": (256, 256),
-        "image_normalize": True,
+        "image_normalize": False,
         }
 
 
@@ -71,8 +71,12 @@ class SimpleCNN(nn.Module):
         logits = self.fc(x)
         return logits
 
-def train(model, dataloader, optimizer, criterion):
+
+def train_one_epoch(model, dataloader, optimizer, criterion, t):
     model.train()
+
+    batch_size = dataloader.batch_size
+    size = len(dataloader.dataset)
 
     batch_bar = tqdm(total=len(dataloader), dynamic_ncols=True, leave=False, position=0, desc='Train')
 
@@ -95,183 +99,75 @@ def train(model, dataloader, optimizer, criterion):
         # Gradient descent
         optimizer.step()
 
+        loss = float(loss.item())
+
         # Update no. of correct image predictions & loss as we iterate
         num_correct += int((torch.argmax(outputs, dim=1)==labels).sum())
-        total_loss += float(loss.item())
+        total_loss += loss
 
         # tqdm lets you add some details so you can monitor training as you train.
         batch_bar.set_postfix(
-            acc = "{:.04f}%".format(num_correct/(CONFIG["batch_size"]*(idx+1))*100),
+            acc = "{:.04f}%".format(num_correct/(batch_size*(idx+1))*100),
             loss = "{:.04f}".format(float(total_loss/(idx+1))),
         )
 
         batch_bar.update()
 
+        wandb.log({"n_examples": (idx+1)*batch_size + size * t, "train_loss": loss})
+
     batch_bar.close()
 
-    # Calculate the total accuracy and loss for this epoch
-    acc = num_correct/(CONFIG["batch_size"]*len(dataloader))*100
-    total_loss = float(total_loss/len(dataloader))
-
-    return acc, total_loss
+ 
 
 
-def validate(model, dataloader, criterion):
+def evaluate(model, dataloader, dataname, criterion):
+    size = len(dataloader.dataset)
+    batch_size = dataloader.batch_size
+
     model.eval()
-    batch_bar = tqdm(total=len(dataloader), dynamic_ncols=True, position=0, leave=False, desc='Validate')
+    batch_bar = tqdm(total=len(dataloader), dynamic_ncols=True, position=0, leave=False, desc=f'Evaluate on {dataname} dataset')
 
-    num_correct = 0.0
-    total_loss = 0.0
+    avg_loss, num_correct = 0, 0
 
-    TP = 0
-    TN = 0
-    FP = 0
-    FN = 0
+    TP, TN, FP, FN = 0, 0, 0, 0
 
-    for idx, (images, labels) in enumerate(dataloader):
+    with torch.no_grad():
+        for idx, (images, labels) in enumerate(dataloader):
 
-        images, labels = images.to(DEVICE), labels.to(DEVICE)
+            images, labels = images.to(DEVICE), labels.to(DEVICE)
 
-        # Get model outputs
-        # For validation, we use the inference mode
-        with torch.inference_mode():
             outputs = model(images)
             loss = criterion(outputs, labels)
 
-        preds = torch.argmax(outputs, dim=1)
+            preds = torch.argmax(outputs, dim=1)
 
-        num_correct += int((preds==labels).sum())
-        total_loss += float(loss.item())
+            num_correct += int((preds==labels).sum())
+            avg_loss += float(loss.item())
 
-        #FILL IN for sensitivity and specificity
-        for p, l in zip(preds, labels):
-            if p == 1 and l == 1:
-              TP += 1
-            elif p == 0 and l == 0:
-              TN += 1
-            elif p == 1 and l == 0:
-              FP += 1
-            elif p == 0 and l == 1:
-              FN += 1
+            #FILL IN for sensitivity and specificity
+            for p, l in zip(preds, labels):
+                if p == 1 and l == 1:
+                    TP += 1
+                elif p == 0 and l == 0:
+                    TN += 1
+                elif p == 1 and l == 0:
+                    FP += 1
+                elif p == 0 and l == 1:
+                    FN += 1
 
-        batch_bar.set_postfix(
-            acc= "{:.04f}%".format(num_correct/(CONFIG["batch_size"]*(idx+1))*100),
-            loss= "{:.04f}".format(float(total_loss/(idx+1)))
-        )
+            batch_bar.set_postfix(
+                acc= "{:.04f}%".format(num_correct/(batch_size*(idx+1))*100),
+                loss= "{:.04f}".format(float(avg_loss/(idx+1)))
+            )
 
-        batch_bar.update()
+            batch_bar.update()
 
     batch_bar.close()
-    acc = num_correct/(CONFIG["batch_size"]*len(dataloader))*100
-    total_loss = float(total_loss/len(dataloader))
+    acc = num_correct/size
+    total_loss = avg_loss/size
 
     return acc, total_loss, TP, TN, FP, FN
 
-def train_(model, train_loader, valid_loader, optimizer, criterion, config):
-    train_loss_list = []
-    train_acc_list = []
-    val_loss_list = []
-    val_acc_list = []
-
-    # Iterate over the number epochs you specified in your config dictionary.
-    for epoch in range(config["epoch"]):
-        # Train your model
-        train_acc, train_loss = train(model, train_loader, optimizer, criterion)
-
-        print("\nEpoch {}/{}: \nTrain Acc {:.04f}%\t Train Loss {:.04f}\t Learning Rate {:.04f}".format(
-            epoch + 1,
-            config["epoch"],
-            train_acc,
-            train_loss,
-            config["learning_rate"]))
-
-        # Validate your model
-        val_acc, val_loss, TP, TN, FP, FN = validate(model, valid_loader, criterion)
-
-        sensitivity = TP / (TP + FN)
-        specificity = TN / (TN + FP)
-
-        print("Val Acc {:.04f}%\t Val Loss {:.04f}".format(val_acc, val_loss))
-        print("Sensitivity {:.04f}%\t Specificity {:.04f}%".format(sensitivity * 100, specificity * 100))
-
-        train_loss_list.append(train_loss)
-        train_acc_list.append(train_acc)
-        val_loss_list.append(val_loss)
-        val_acc_list.append(val_acc)
-
-        return train_loss_list, val_loss_list, train_acc_list, val_acc_list
-
-
-def plot_training(config, train_loss_list, val_loss_list, train_acc_list, val_acc_list):
-    epochs = [i for i in range(1, config["epoch"] + 1)]
-
-    plt.figure
-    plt.plot(epochs, train_loss_list, label='Training Loss')
-    plt.plot(epochs, val_loss_list, label='Validation Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title('Training and Validation Loss')
-    plt.legend()
-    plt.show()
-
-    plt.figure
-    plt.plot(epochs, train_acc_list, label='Training Accuracy')
-    plt.plot(epochs, val_acc_list, label='Validation Accuracy')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.title('Training and Validation Accuracy')
-    plt.legend()
-    plt.show()
-
-
-def test(model, dataloader):
-    model.eval()
-    batch_bar = tqdm(total=len(dataloader), dynamic_ncols=True, position=0, leave=False, desc='Test')
-
-    pred_labels = []
-    true_labels = []
-
-    TP = 0
-    TN = 0
-    FP = 0
-    FN = 0
-
-    for _, (images, labels) in enumerate(dataloader):
-        images = images.to(DEVICE)
-
-        with torch.inference_mode():
-            outputs = model(images)
-
-        # Get predictions and true labels
-        preds = torch.argmax(outputs, dim=1).detach().cpu().numpy().tolist()
-        labels = labels.detach().cpu().numpy().tolist()
-
-        # Extend lists to track all predictions and labels
-        pred_labels.extend(preds)
-        true_labels.extend(labels)
-
-        # Update TP, TN, FP, FN counts
-        for p, l in zip(preds, labels):
-          if p == 1 and l == 1:
-              TP += 1
-          elif p == 0 and l == 0:
-            TN += 1
-          elif p == 1 and l == 0:
-            FP += 1
-          elif p == 0 and l == 1:
-            FN += 1
-
-        batch_bar.update()
-
-    batch_bar.close()
-
-    # Calculate sensitivity and specificity
-    sensitivity = TP / (TP + FN)
-    specificity = TN / (TN + FP)
-
-    print("Sensitivity {:.04f}%\t Specificity {:.04f}%".format(sensitivity * 100, specificity * 100))
-
-    return pred_labels, true_labels
 
 
 
@@ -283,7 +179,7 @@ def get_image_transforms(config):
     transforms.append(T.Grayscale(num_output_channels=1)) # images are BW
 
     if config["image_normalize"]:
-        transforms.append(T.Normalize(mean=[0.454], std=[0.282]))
+        transforms.append(T.Normalize(mean=[0.454], std=[0.282])) 
 
     return T.Compose(transforms)
 
@@ -309,9 +205,9 @@ def main():
     parser.add_argument('-data_dir', required=True, help='path to datasets')
     parser.add_argument('-config', help='path to config file for model')
     parser.add_argument('-v', action='store_true', help='verbose mode')
+    parser.add_argument('-out_dir')
 
     args = parser.parse_args()
-    config = args.config
 
     image_transforms = get_image_transforms(CONFIG)
 
@@ -331,23 +227,43 @@ def main():
         print("No. of valid images  : ", val_dataset.__len__())
         assert(train_dataset.class_to_idx == val_dataset.class_to_idx)
         print("Labels               : ", train_dataset.class_to_idx)
+        print("Image stats (mean, std): ", train_dataset[0][0].mean(), train_dataset[0][0].std())
 
     model = SimpleCNN(img_size, num_labels).to(DEVICE)
 
     if args.v:
         summary(model, img_shape)
 
+    def init_weights(m):
+        if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+            nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+    model.apply(init_weights)
+
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=CONFIG["learning_rate"], momentum=CONFIG["momentum"])
+    optimizer = optim.Adam(model.parameters(), lr=CONFIG["learning_rate"])
 
-    train_loss_list, val_loss_list, train_acc_list, val_acc_list = train_(model, train_dataloader, val_dataloader, optimizer, criterion, CONFIG)
-    plot_training(CONFIG, train_loss_list, val_loss_list, train_acc_list, val_acc_list)
-    
-    pred_labels, true_labels = test(model, test_dataloader)
+    run = wandb.init(project="compmed")
 
-    # TODO: calculate the accuracy score
-    test_acc = (np.array(pred_labels) == np.array(true_labels)).mean() * 100
-    print("Test Acc {:.04f}%".format(test_acc))
+
+    for t in range(CONFIG["n_epochs"]):
+        print(f"\nEpoch {t+1}\n----------------------")
+        train_one_epoch(model, train_dataloader, optimizer, criterion, t)
+        train_loss, train_acc, *_ = evaluate(model, train_dataloader, 'Train', criterion)
+        val_loss, val_acc, *_ = evaluate(model, val_dataloader, "Validation", criterion)
+        test_loss, test_acc, *_ = evaluate(model, test_dataloader, "Test", criterion)
+        wandb.log({"epoch": t, "train_loss_": train_loss, "val_loss_": val_loss, "train_acc_": train_acc, "val_acc_": val_acc, "test_loss_": test_loss, "test_acc_": test_acc})
+
+    print("Done!")
+
+    test_loss, test_acc, TP, TN, FP, FN = evaluate(model, test_dataloader, "Test", criterion)
+    wandb.log({"Sensitivity": TP / (TP + FN), "Specificity": TN / (TN + FP)})
+
+    # Save the model
+    torch.save(model.state_dict(), os.path.join(args.out_dir, "model.pth"))
+    print("Saved PyTorch Model State to model.pth")
 
 if __name__ == "__main__":
     main()

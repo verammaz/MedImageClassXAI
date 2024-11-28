@@ -1,0 +1,13 @@
+
+Epoch 1
+----------------------
+Evaluate on Train dataset:   0%|                         | 0/82 [00:00<?, ?it/s]Traceback (most recent call last):
+  File "/Users/veramazeeva/Library/CloudStorage/OneDrive-Personal/Carnegie Mellon/CompMed/project/code/cnn.py", line 269, in <module>
+    main()
+  File "/Users/veramazeeva/Library/CloudStorage/OneDrive-Personal/Carnegie Mellon/CompMed/project/code/cnn.py", line 254, in main
+    train_loss, train_acc, *_ = evaluate(model, train_dataloader, 'Train', criterion)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/veramazeeva/Library/CloudStorage/OneDrive-Personal/Carnegie Mellon/CompMed/project/code/cnn.py", line 160, in evaluate
+    loss= "{:.04f}".format(float(total_loss/(idx+1)))
+                                 ^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'total_loss' where it is not associated with a value

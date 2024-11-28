@@ -1,0 +1,9 @@
+{"time":"2024-11-27T19:28:58.150608-05:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2024-11-27T19:28:58.150642-05:00","level":"INFO","msg":"created symlink","path":"/Users/veramazeeva/Library/CloudStorage/OneDrive-Personal/Carnegie Mellon/CompMed/project/code/wandb/run-20241127_192858-rtvniesa/logs/debug-core.log"}
+{"time":"2024-11-27T19:28:58.675979-05:00","level":"INFO","msg":"created new stream","id":"rtvniesa"}
+{"time":"2024-11-27T19:28:58.6762-05:00","level":"INFO","msg":"stream: started","id":"rtvniesa"}
+{"time":"2024-11-27T19:28:58.676676-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"rtvniesa"}
+{"time":"2024-11-27T19:28:58.676687-05:00","level":"INFO","msg":"handler: started","stream_id":"rtvniesa"}
+{"time":"2024-11-27T19:28:58.676762-05:00","level":"INFO","msg":"sender: started","stream_id":"rtvniesa"}
+{"time":"2024-11-27T19:28:58.962484-05:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2024-11-27T19:29:28.964458-05:00","level":"ERROR","msg":"monitor: cpu: error sampling metrics: input/output error"}
