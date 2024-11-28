@@ -180,7 +180,7 @@ def get_image_transforms(config):
                 T.Resize(min(config["img_size"][0], config["img_size"][1]), antialias=True),
                 T.CenterCrop(config["img_size"])]
 
-    transforms.append(T.Grayscale(num_output_channels=1)) # images are BW
+    transforms.append(T.Grayscale(num_output_channels=config["img_channels"])) 
 
     if config["img_norm"]:
         # TODO: make more general --> calculate mean/std dynamically
@@ -202,7 +202,7 @@ def get_dataset(data_dir, type, image_transforms):
 
 
 def get_dataloader(dataset, batch_size, shuffle=True):
-    return DataLoader(dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=4, pin_memory=True)
+    return DataLoader(dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=2, pin_memory=True)
 
 
 
