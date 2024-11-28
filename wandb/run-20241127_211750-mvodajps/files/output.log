@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/Users/veramazeeva/Library/CloudStorage/OneDrive-Personal/Carnegie Mellon/CompMed/project/code/cnn.py", line 282, in <module>
+    main()
+  File "/Users/veramazeeva/Library/CloudStorage/OneDrive-Personal/Carnegie Mellon/CompMed/project/code/cnn.py", line 262, in main
+    for t in range(CONFIG["n_epochs"]):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object cannot be interpreted as an integer

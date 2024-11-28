@@ -1,0 +1,16 @@
+{"time":"2024-11-27T21:36:04.441561-05:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2024-11-27T21:36:04.441588-05:00","level":"INFO","msg":"created symlink","path":"/Users/veramazeeva/Library/CloudStorage/OneDrive-Personal/Carnegie Mellon/CompMed/project/code/wandb/run-20241127_213604-mii75r6v/logs/debug-core.log"}
+{"time":"2024-11-27T21:36:04.555087-05:00","level":"INFO","msg":"created new stream","id":"mii75r6v"}
+{"time":"2024-11-27T21:36:04.555147-05:00","level":"INFO","msg":"stream: started","id":"mii75r6v"}
+{"time":"2024-11-27T21:36:04.555366-05:00","level":"INFO","msg":"handler: started","stream_id":"mii75r6v"}
+{"time":"2024-11-27T21:36:04.555509-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"mii75r6v"}
+{"time":"2024-11-27T21:36:04.555515-05:00","level":"INFO","msg":"sender: started","stream_id":"mii75r6v"}
+{"time":"2024-11-27T21:36:04.797047-05:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2024-11-27T21:40:09.805229-05:00","level":"INFO","msg":"stream: closing","id":"mii75r6v"}
+{"time":"2024-11-27T21:40:09.805511-05:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2024-11-27T21:40:09.809336-05:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2024-11-27T21:40:11.375111-05:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2024-11-27T21:40:11.750081-05:00","level":"INFO","msg":"handler: closed","stream_id":"mii75r6v"}
+{"time":"2024-11-27T21:40:11.750139-05:00","level":"INFO","msg":"writer: Close: closed","stream_id":"mii75r6v"}
+{"time":"2024-11-27T21:40:11.750159-05:00","level":"INFO","msg":"sender: closed","stream_id":"mii75r6v"}
+{"time":"2024-11-27T21:40:11.750539-05:00","level":"INFO","msg":"stream: closed","id":"mii75r6v"}

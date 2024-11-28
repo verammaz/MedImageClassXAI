@@ -1,0 +1,16 @@
+
+Epoch 1
+----------------------
+Traceback (most recent call last):                                              
+"Train Loss: 0.8964723926380368, Train Accuracy: 0.010566484416617892
+"Val Loss: 0.875, Val Accuracy: 0.041495181620121
+"Test Loss: 0.8012820512820513, Test Accuracy: 0.025840216340162814
+Done!
+Final Model Performance:
+-------------------
+  File "/Users/veramazeeva/Library/CloudStorage/OneDrive-Personal/Carnegie Mellon/CompMed/project/code/cnn.py", line 299, in <module>
+    main()
+  File "/Users/veramazeeva/Library/CloudStorage/OneDrive-Personal/Carnegie Mellon/CompMed/project/code/cnn.py", line 286, in main
+    test_loss, test_acc, TP, TN, FP, FN = evaluate(model, test_dataloader, "Test", criterion)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 6, got 4)
