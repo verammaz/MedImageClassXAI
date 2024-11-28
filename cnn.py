@@ -40,33 +40,32 @@ CONFIG = {"batch_size": 64,
 class SimpleCNN(nn.Module):
     def __init__(self, image_channels, image_size, num_labels):
         super(SimpleCNN, self).__init__()
-        self.image_size = image_size  # Tuple (H, W)
-        self.num_labels = num_labels
 
         self.layer_stack = nn.Sequential(
-            nn.Conv2d(image_channels, 128, (4, 4), stride=4, padding=0),  # Output: (128, H/4, W/4)
-            nn.LayerNorm([128, self.image_size[0] // 4, self.image_size[1] // 4]),
-            nn.Conv2d(128, 128, 7, stride=1, padding=3),     # Output: (128, H/4, W/4)
-            nn.LayerNorm([128, self.image_size[0] // 4, self.image_size[1] // 4]),
-            nn.Conv2d(128, 256, 1),                         # Output: (256, H/4, W/4)
-            nn.GELU(),                                      # GELU activation
-            nn.Conv2d(256, 128, 1),                         # Output: (128, H/4, W/4)
-            nn.AvgPool2d(2, stride=2),                      # Output: (128, H/8, W/8)
-            nn.Flatten(),                                   # Flatten: 128 * (H/8) * (W/8)
+            nn.Conv2d(image_channels, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),  # (H/2, W/2)
+
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),  # (H/4, W/4)
+
+            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d(1),  # Global average pooling to (256, 1, 1)
         )
-
-        # Compute the flattened size dynamically
-        h, w = self.image_size
-        flattened_dim = 128 * (h // 8) * (w // 8)
-
-        self.fc = nn.Linear(flattened_dim, self.num_labels)  # Fully connected layer
+        self.fc = nn.Linear(256, num_labels)
 
     def forward(self, x):
-        # Ensure input tensor is on the same device as the model
         x = x.to(next(self.parameters()).device)
         x = self.layer_stack(x)
-        logits = self.fc(x)
-        return logits
+        x = x.view(x.size(0), -1)  # Flatten
+        x = self.fc(x)
+        return x
+
 
 
 def train_one_epoch(model, dataloader, optimizer, criterion, t):
@@ -141,7 +140,6 @@ def evaluate(model, dataloader, dataname, criterion, confusion_matrix=False):
             num_correct += int((preds==labels).sum())
             total_loss += float(loss.item())
 
-            #FILL IN for sensitivity and specificity
             for p, l in zip(preds, labels):
                 if p == 1 and l == 1:
                     TP += 1
@@ -181,6 +179,9 @@ def get_image_transforms(config):
                 T.CenterCrop(config["img_size"])]
 
     transforms.append(T.Grayscale(num_output_channels=config["img_channels"])) 
+    transforms.append(T.RandomHorizontalFlip(p=0.5))
+    transforms.append(T.RandomRotation(10))
+    transforms.append(T.ColorJitter(brightness=0.2, contrast=0.2))
 
     if config["img_norm"]:
         # TODO: make more general --> calculate mean/std dynamically
