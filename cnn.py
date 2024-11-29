@@ -277,6 +277,7 @@ def main():
     model = SimpleCNN().to(DEVICE) 
 
     if args.pretrained is not None:
+        print("Loading pretrained model...\n")
         model.load_state_dict(torch.load(args.pretrained, map_location=DEVICE)) 
 
     if args.v:
