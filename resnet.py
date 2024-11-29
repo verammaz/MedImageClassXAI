@@ -35,13 +35,13 @@ DEVICE = (
 CONFIG = {}
 
 class MyResNET():
-    def __init__(self):
+    def __init__(self, freeze_params=True):
         super(MyResNET, self).__init__()
         self.model = resnet18(pretrained=True)
-        self.model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.model.conv1 = nn.Conv2d(1, self.model.conv1.out_channels, kernel_size=7, stride=2, padding=3, bias=False)
         self.model.fc = nn.Linear(self.model.fc.in_features, num_labels)
 
-        self.freeze_params()
+        if freeze_params: self.freeze_params()
 
     def freeze_params(self):
 
@@ -215,17 +215,16 @@ def main():
     parser.add_argument('-n_epochs', default=8)
     parser.add_argument('-lr', default=0.001)
     parser.add_argument('-img_size', default=(256, 256))
-    parser.add_argument('-img_channels', default=1)
     parser.add_argument('-img_norm', action='store_true')
+    parser.add_argument('-freeze_params', action='store_true')
 
     args = parser.parse_args()
 
     CONFIG = {'batch_size': int(args.batch_size),
               'n_epochs': int(args.n_epochs),
               'lr': args.lr,
-              'img_size': args.img_size,
-              'img_norm': args.img_norm,
-              "img_channels": args.img_channels}
+              'img_size': (int(args.img_size), int(args.img_size)),
+              'img_norm': args.img_norm}
 
     assert(num_labels==2) # model applicable for binary classification
 
@@ -240,7 +239,7 @@ def main():
     val_dataloader = get_dataloader(val_dataset, CONFIG["batch_size"])
     test_dataloader = get_dataloader(test_dataset, CONFIG["batch_size"])
 
-    model = MyResNET()
+    model = MyResNET(args.freeze_params)
 
     # Move model to device
     model = model.to(DEVICE)
