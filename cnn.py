@@ -240,6 +240,7 @@ def main():
     parser.add_argument('-img_size', default=256)
     parser.add_argument('-img_channels', default=1)
     parser.add_argument('-img_norm', action='store_true')
+    parser.add_argument('-pretrained', help='path to pretrained model')
 
     args = parser.parse_args()
 
@@ -273,7 +274,10 @@ def main():
         print("Labels               : ", train_dataset.class_to_idx)
         print("Image stats (mean, std): ", train_dataset[0][0].mean(), train_dataset[0][0].std())
 
-    model = SimpleCNN().to(DEVICE)
+    model = SimpleCNN().to(DEVICE) 
+
+    if args.pretrained is not None:
+        model.load_state_dict(torch.load(args.model_path, map_location=DEVICE)) 
 
     if args.v:
         summary(model, (1, CONFIG["img_size"][0], CONFIG["img_size"][1]))
@@ -293,6 +297,9 @@ def main():
     wandb.init(project="compmed", group='SimpleCNN')
 
     os.makedirs(args.out_dir, exist_ok=True)
+
+    model_name= f'SimpleCNN_lr{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}'
+    best_model_path = os.path.join(args.out_dir, f"{model_name}.pth")
 
     best_val_loss = np.inf
     best_val_acc = 0.0
@@ -321,18 +328,23 @@ def main():
                                 #"test_acc_": test_acc
                                 })
 
-        # Save the best model based on validation accuracy or loss
+              # Save the best model based on validation accuracy or loss
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_val_acc = val_acc
-            model_name = f'SimpleCNN_lr{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}'
-            torch.save(model.state_dict(), os.path.join(args.out_dir, f"{model_name}.pth"))
-            print(f"Best model saved with Val Loss: {val_loss:.4f}, Val Accuracy: {val_acc:.4f}")
+            torch.save(model.state_dict(), best_model_path)
+            print(f"Best model saved to {best_model_path}")
+
 
     print("Done!\n")
 
 
-    print("Final Model Performance:\n-------------------")
+    # Reload the best model
+    model.load_state_dict(torch.load(best_model_path))
+    model.eval()
+
+
+    print("Best Model Performance:\n-------------------")
     test_loss, test_acc, sensitivity, specificity, cm = evaluate(model, test_dataloader, "Test", criterion, confusion_matrix=True)
     print(f'Loss: {test_loss}, Accuracy: {test_acc}')
     print(f'Confusion Matrix\n: {cm}')

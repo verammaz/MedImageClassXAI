@@ -30,8 +30,6 @@ DEVICE = (
     else "cpu"
 )
 
-DEVICE = "cpu"
-
 # Model configuration
 CONFIG = {}
 

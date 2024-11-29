@@ -218,6 +218,7 @@ def main():
     parser.add_argument('-img_norm', action='store_true')
     parser.add_argument('-freeze_params', action='store_true')
 
+
     args = parser.parse_args()
 
     CONFIG = {'batch_size': int(args.batch_size),
@@ -256,6 +257,9 @@ def main():
     best_val_loss = np.inf
     best_val_acc = 0.0
 
+    model_name= f'ResNET_lr{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}'
+    best_model_path = os.path.join(args.out_dir, f"{model_name}.pth")
+
     for t in range(CONFIG["n_epochs"]):
         print(f"\nEpoch {t+1}\n----------------------")
         train_one_epoch(model, train_dataloader, optimizer, criterion, t)
@@ -286,20 +290,21 @@ def main():
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_val_acc = val_acc
-            model_name = f'ResNET_lr{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}'
-            torch.save(model.state_dict(), os.path.join(args.out_dir, f"{model_name}.pth"))
-            print(f"Best model saved with Val Loss: {val_loss:.4f}, Val Accuracy: {val_acc:.4f}")
+            torch.save(model.state_dict(), best_model_path)
+            print(f"Best model saved to {best_model_path}")
 
 
     print("Done!\n")
 
-    total_params = sum(
-	param.numel() for param in model.parameters()
-    )
-
+    total_params = sum(param.numel() for param in model.parameters())
     print(f"\nTotal parameters: {total_params}\n")
 
-    print("Final Model Performance:\n-------------------")
+    # Reload the best model
+    model.load_state_dict(torch.load(best_model_path))
+    model.eval()
+
+
+    print("Best Model Performance:\n-------------------")
     test_loss, test_acc, sensitivity, specificity, cm = evaluate(model, test_dataloader, "Test", criterion, confusion_matrix=True)
     print(f'Loss: {test_loss}, Accuracy: {test_acc}')
     print(f'Confusion Matrix\n: {cm}')
