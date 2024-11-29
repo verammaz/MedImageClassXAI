@@ -214,7 +214,7 @@ def main():
     parser.add_argument('-batch_size', default=64)
     parser.add_argument('-n_epochs', default=8)
     parser.add_argument('-lr', default=0.001)
-    parser.add_argument('-img_size', default=(256, 256))
+    parser.add_argument('-img_size', default=256)
     parser.add_argument('-img_norm', action='store_true')
     parser.add_argument('-freeze_params', action='store_true')
 
