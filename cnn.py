@@ -299,6 +299,7 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
 
     model_name= f'SimpleCNN_lr{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}'
+    if args.pretrained is not None: model_name += "_finetune" 
     best_model_path = os.path.join(args.out_dir, f"{model_name}.pth")
 
     best_val_loss = np.inf
