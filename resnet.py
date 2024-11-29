@@ -239,10 +239,8 @@ def main():
     val_dataloader = get_dataloader(val_dataset, CONFIG["batch_size"])
     test_dataloader = get_dataloader(test_dataset, CONFIG["batch_size"])
 
-    model = MyResNET(args.freeze_params)
+    model = MyResNET(args.freeze_params).to(DEVICE)
 
-    # Move model to device
-    model = model.to(DEVICE)
     print(f"Device: {DEVICE}")
 
     # Define optimizer and loss function
