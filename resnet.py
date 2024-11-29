@@ -34,7 +34,7 @@ DEVICE = (
 # Model configuration
 CONFIG = {}
 
-class MyResNET():
+class MyResNET(nn.Module):
     def __init__(self, freeze_params=True):
         super(MyResNET, self).__init__()
         self.model = resnet18(pretrained=True)
