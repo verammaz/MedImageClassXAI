@@ -276,10 +276,6 @@ def main():
 
     model = SimpleCNN().to(DEVICE) 
 
-    if args.pretrained is not None:
-        print("Loading pretrained model...\n")
-        model.load_state_dict(torch.load(args.pretrained, map_location=DEVICE)) 
-
     if args.v:
         summary(model, (1, CONFIG["img_size"][0], CONFIG["img_size"][1]))
 
@@ -289,7 +285,12 @@ def main():
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    model.apply(init_weights)
+    if args.pretrained is not None:
+        print("Loading pretrained model...\n")
+        model.load_state_dict(torch.load(args.pretrained, map_location=DEVICE)) 
+ 
+    else:
+        model.apply(init_weights)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=CONFIG["lr"], weight_decay=1e-5)
