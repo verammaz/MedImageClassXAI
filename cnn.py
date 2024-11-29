@@ -33,7 +33,7 @@ CONFIG = {}
 
 
 class SimpleCNN(nn.Module):
-    def __init__(self, num_labels=2):
+    def __init__(self):
         super(SimpleCNN, self).__init__()
 
         self.conv_stack = nn.Sequential(
@@ -225,10 +225,10 @@ def main():
     parser.add_argument('-data_dir', required=True, help='path to datasets')
     parser.add_argument('-v', action='store_true', help='verbose mode')
     parser.add_argument('-out_dir', default='out', help='path where to save trained model parameters')
-    parser.add_argument('-batch_size', default=16)
+    parser.add_argument('-batch_size', default=32)
     parser.add_argument('-n_epochs', default=8)
     parser.add_argument('-lr', default=0.001)
-    parser.add_argument('-img_size', default=(256, 256))
+    parser.add_argument('-img_size', default=256)
     parser.add_argument('-img_channels', default=1)
     parser.add_argument('-img_norm', action='store_true')
 
@@ -236,8 +236,8 @@ def main():
 
     CONFIG = {'batch_size': int(args.batch_size),
               'n_epochs': int(args.n_epochs),
-              'lr': args.lr,
-              'img_size': args.img_size,
+              'lr': float(args.lr),
+              'img_size': (int(args.img_size), int(args.img_size)),
               'img_norm': args.img_norm,}
 
     assert(num_labels==2) # model applicable for binary classification
@@ -263,7 +263,7 @@ def main():
         print("Labels               : ", train_dataset.class_to_idx)
         print("Image stats (mean, std): ", train_dataset[0][0].mean(), train_dataset[0][0].std())
 
-    model = SimpleCNN(num_labels).to(DEVICE)
+    model = SimpleCNN().to(DEVICE)
 
     if args.v:
         summary(model, (1, CONFIG["img_size"][0], CONFIG["img_size"][1]))
