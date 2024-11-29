@@ -7,7 +7,7 @@ import json
 import argparse
 from tqdm import tqdm
 from torch import optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision import datasets
 import torchvision.transforms as T
 import wandb
@@ -34,21 +34,48 @@ DEVICE = (
 # Model configuration
 CONFIG = {}
 
-def get_image_transforms(config):
-    transforms = [T.ToTensor(),
-                T.Resize(min(config["img_size"][0], config["img_size"][1]), antialias=True),
-                T.CenterCrop(config["img_size"])]
+class MyResNET():
+    def __init__(self):
+        super(MyResNET, self).__init__()
+        self.model = resnet18(pretrained=True)
+        self.model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.model.fc = nn.Linear(self.model.fc.in_features, num_labels)
 
-    transforms.append(T.Grayscale(num_output_channels=config["img_channels"])) 
-    transforms.append(T.RandomHorizontalFlip(p=0.5))
-    transforms.append(T.RandomRotation(10))
-    transforms.append(T.ColorJitter(brightness=0.2, contrast=0.2))
+        self.freeze_params()
+
+    def freeze_params(self):
+
+        for param in self.model.parameters():
+            param.requires_grad = False  # Freeze all layers
+
+        self.model.fc.weight.requires_grad = True  # Unfreeze final layer
+        self.model.fc.bias.requires_grad = True
+        self.model.conv1.weight.requires_grad = True # Unfreeze first layer
+
+    def forward(self, x):
+        return self.model(x)
+    
+
+def get_image_transforms(config):
+    transforms = [T.RandomHorizontalFlip(),
+                T.RandomRotation(15),
+                T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+                T.Resize(config["img_size"]),
+                T.Grayscale(num_output_channels=1),  # Convert to grayscale (1 channel)
+                T.ToTensor()]
 
     if config["img_norm"]:
         # TODO: make more general --> calculate mean/std dynamically
         transforms.append(T.Normalize(mean=[0.5519], std=[0.2131])) # stats of kaggle chest_xray data: paultimothymooney/chest-xray-pneumonia 
 
-    return T.Compose(transforms)
+
+    transforms_common = [T.Grayscale(num_output_channels=1),  
+            T.Resize(config["img_size"]),
+            T.ToTensor(),
+            T.Normalize(mean=(0.5,), std=(0.5,))]
+    
+
+    return T.Compose(transforms), T.Compose(transforms_common)
 
 
 def get_dataset(data_dir, type, image_transforms):
@@ -63,8 +90,17 @@ def get_dataset(data_dir, type, image_transforms):
     return dataset
 
 
-def get_dataloader(dataset, batch_size, shuffle=True):
-    return DataLoader(dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=2, pin_memory=True)
+def get_dataloader(dataset, batch_size, train=False):
+    if train:
+        # Weighted Random Sampling for dealing with Imbalanced Dataset
+        class_freq = torch.as_tensor(dataset.targets).bincount()
+        weight = 1 / class_freq
+        samples_weight = weight[dataset.targets]
+        sampler = WeightedRandomSampler(samples_weight, len(samples_weight), replacement=True)
+
+        return DataLoader(dataset, batch_size=batch_size, sampler=sampler, num_workers=2)
+    
+    return DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True)
 
 
 def train_one_epoch(model, dataloader, optimizer, criterion, t):
@@ -193,42 +229,30 @@ def main():
 
     assert(num_labels==2) # model applicable for binary classification
 
-    image_transforms = get_image_transforms(CONFIG)
+    
+    img_transforms, _ = get_image_transforms(CONFIG)
 
-    train_dataset = get_dataset(args.data_dir, 'train', image_transforms)
-    val_dataset = get_dataset(args.data_dir, 'val', image_transforms)
-    test_dataset = get_dataset(args.data_dir, 'test', image_transforms)
+    train_dataset = get_dataset(args.data_dir, 'train', img_transforms)
+    val_dataset = get_dataset(args.data_dir, 'val', img_transforms)
+    test_dataset = get_dataset(args.data_dir, 'test', img_transforms)
 
-    train_dataloader = get_dataloader(train_dataset, CONFIG["batch_size"])
+    train_dataloader = get_dataloader(train_dataset, CONFIG["batch_size"], train=True)
     val_dataloader = get_dataloader(val_dataset, CONFIG["batch_size"])
     test_dataloader = get_dataloader(test_dataset, CONFIG["batch_size"])
 
-
-    pretrained_model = resnet18(pretrained=True)
-
-    pretrained_model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
-
-    pretrained_model.fc = nn.Linear(pretrained_model.fc.in_features, num_labels)
-
-    # Freeze earlier layers
-    for param in pretrained_model.parameters():
-        param.requires_grad = False  # Freeze all layers
-    pretrained_model.fc.weight.requires_grad = True  # Unfreeze final layer
-    pretrained_model.fc.bias.requires_grad = True
-    pretrained_model.conv1.weight.requires_grad = True
-
+    model = MyResNET()
 
     # Move model to device
-    pretrained_model = pretrained_model.to(DEVICE)
+    model = model.to(DEVICE)
     print(f"Device: {DEVICE}")
 
     # Define optimizer and loss function
-    optimizer = torch.optim.Adam(pretrained_model.parameters(), CONFIG["lr"])
+    optimizer = torch.optim.Adam(model.parameters(), CONFIG["lr"])
     criterion = nn.CrossEntropyLoss()
 
 
     wandb.init(project="compmed", group='ResNET')
-    wandb.watch(pretrained_model, log="all", log_freq=10)
+    wandb.watch(model, log="all", log_freq=10)
 
     os.makedirs(args.out_dir, exist_ok=True)
 
@@ -237,51 +261,54 @@ def main():
 
     for t in range(CONFIG["n_epochs"]):
         print(f"\nEpoch {t+1}\n----------------------")
-        train_one_epoch(pretrained_model, train_dataloader, optimizer, criterion, t)
+        train_one_epoch(model, train_dataloader, optimizer, criterion, t)
         
-        train_loss, train_acc, sens, spec = evaluate(pretrained_model, train_dataloader, 'Train', criterion)
+        train_loss, train_acc, sens, spec = evaluate(model, train_dataloader, 'Train', criterion)
         wandb.log({"train_specificity": spec, "train_sensitivity": sens})
         print(f'Train Loss: {train_loss}, Train Accuracy: {train_acc}')
         
-        val_loss, val_acc, sens, spec = evaluate(pretrained_model, val_dataloader, "Validation", criterion)
+        val_loss, val_acc, sens, spec = evaluate(model, val_dataloader, "Validation", criterion)
         wandb.log({"val_specificity": spec, "val_sensitivity": sens})
         print(f'Val Loss: {val_loss}, Val Accuracy: {val_acc}')
         
-        test_loss, test_acc, sens, spec = evaluate(pretrained_model, test_dataloader, "Test", criterion)
-        wandb.log({"test_specificity": spec, "test_sensitivity": sens})
-        print(f'Test Loss: {test_loss}, Test Accuracy: {test_acc}')
+        #test_loss, test_acc, sens, spec = evaluate(model, test_dataloader, "Test", criterion)
+        #wandb.log({"test_specificity": spec, "test_sensitivity": sens})
+        #print(f'Test Loss: {test_loss}, Test Accuracy: {test_acc}')
         
-        wandb.log({"epoch": t, "train_loss_": train_loss, "val_loss_": val_loss, "train_acc_": train_acc, "val_acc_": val_acc, "test_loss_": test_loss, "test_acc_": test_acc})
+        wandb.log({"epoch": t, 
+                   "train_loss_": train_loss, 
+                   "val_loss_": val_loss, 
+                   "train_acc_": train_acc, 
+                   "val_acc_": val_acc, 
+                   #"test_loss_": test_loss, 
+                   #"test_acc_": test_acc
+                   })
 
 
         # Save the best model based on validation accuracy or loss
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_val_acc = val_acc
-            torch.save(pretrained_model.state_dict(), os.path.join(args.out_dir, "SimpleCNN_model.pth"))
+            model_name = f'ResNET_lr{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}'
+            torch.save(model.state_dict(), os.path.join(args.out_dir, f"{model_name}.pth"))
             print(f"Best model saved with Val Loss: {val_loss:.4f}, Val Accuracy: {val_acc:.4f}")
 
 
     print("Done!\n")
 
     total_params = sum(
-	param.numel() for param in pretrained_model.parameters()
+	param.numel() for param in model.parameters()
     )
 
     print(f"\nTotal parameters: {total_params}\n")
 
     print("Final Model Performance:\n-------------------")
-    test_loss, test_acc, sensitivity, specificity, cm = evaluate(pretrained_model, test_dataloader, "Test", criterion, confusion_matrix=True)
+    test_loss, test_acc, sensitivity, specificity, cm = evaluate(model, test_dataloader, "Test", criterion, confusion_matrix=True)
     print(f'Loss: {test_loss}, Accuracy: {test_acc}')
     print(f'Confusion Matrix\n: {cm}')
     print(f'Sensitivity: {sensitivity}, Specificity: {specificity}')
     wandb.log({"Sensitivity": sensitivity, "Specificity": specificity})
 
-    # Save the model
-    if args.out_dir is not None:
-        os.mkdirs(args.out_dir)
-        torch.save(pretrained_model.state_dict(), os.path.join(args.out_dir, "model.pth"))
-        print("Saved PyTorch Model State to model.pth")
 
 if __name__ == "__main__":
     main()

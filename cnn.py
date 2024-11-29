@@ -5,7 +5,7 @@ import torch
 from tqdm import tqdm
 from torch import nn
 from torch import optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision import datasets
 import torchvision.transforms as T
 import wandb
@@ -215,8 +215,17 @@ def get_dataset(data_dir, type, image_transforms):
     return dataset
 
 
-def get_dataloader(dataset, batch_size, shuffle=True):
-    return DataLoader(dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=2, pin_memory=True)
+def get_dataloader(dataset, batch_size, train=False):
+    if train:
+        # Weighted Random Sampling for dealing with Imbalanced Dataset
+        class_freq = torch.as_tensor(dataset.targets).bincount()
+        weight = 1 / class_freq
+        samples_weight = weight[dataset.targets]
+        sampler = WeightedRandomSampler(samples_weight, len(samples_weight), replacement=True)
+
+        return DataLoader(dataset, batch_size=batch_size, sampler=sampler, num_workers=2)
+    
+    return DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True)
 
 
 
@@ -243,13 +252,14 @@ def main():
     assert(num_labels==2) # model applicable for binary classification
 
 
-    train_transforms, common_transforms = get_image_transforms(CONFIG)
+    img_transforms, _ = get_image_transforms(CONFIG)
 
-    train_dataset = get_dataset(args.data_dir, 'train', train_transforms)
-    val_dataset = get_dataset(args.data_dir, 'val', common_transforms)
-    test_dataset = get_dataset(args.data_dir, 'test', common_transforms)
+    train_dataset = get_dataset(args.data_dir, 'train', img_transforms)
+    val_dataset = get_dataset(args.data_dir, 'val', img_transforms)
+    test_dataset = get_dataset(args.data_dir, 'test', img_transforms)
 
-    train_dataloader = get_dataloader(train_dataset, CONFIG["batch_size"])
+
+    train_dataloader = get_dataloader(train_dataset, CONFIG["batch_size"], train=True)
     val_dataloader = get_dataloader(val_dataset, CONFIG["batch_size"])
     test_dataloader = get_dataloader(test_dataset, CONFIG["batch_size"])
 
