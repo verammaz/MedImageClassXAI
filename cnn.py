@@ -277,7 +277,7 @@ def main():
     model = SimpleCNN().to(DEVICE) 
 
     if args.pretrained is not None:
-        model.load_state_dict(torch.load(args.model_path, map_location=DEVICE)) 
+        model.load_state_dict(torch.load(args.pretrained, map_location=DEVICE)) 
 
     if args.v:
         summary(model, (1, CONFIG["img_size"][0], CONFIG["img_size"][1]))
