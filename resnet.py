@@ -222,7 +222,7 @@ def main():
 
     CONFIG = {'batch_size': int(args.batch_size),
               'n_epochs': int(args.n_epochs),
-              'lr': args.lr,
+              'lr': float(args.lr),
               'img_size': (int(args.img_size), int(args.img_size)),
               'img_norm': args.img_norm}
 
