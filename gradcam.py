@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 import cv2
@@ -74,7 +75,7 @@ class GradCAM():
         image = image.squeeze().cpu().numpy()
         image = np.uint8(255 * image)
 
-         # Ensure dimensions match and print for debugging
+        # Ensure dimensions match and print for debugging
         print(f"Heatmap shape: {heatmap.shape}")  # Should be (H, W, 3)
         print(f"Image shape: {cv2.cvtColor(image, cv2.COLOR_GRAY2BGR).shape}")  # Should be (H, W, 3)
 
@@ -83,17 +84,15 @@ class GradCAM():
         return overlay
     
 
-def visualize_gradcam(input_image, model, target_layer, target_class):
+def visualize_gradcam(input_image, model, target_layer, target_class, save_path):
     grad_cam = GradCAM(model, target_layer)
 
     cam = grad_cam.generate_heatmap(input_image, target_class)
     overlay = grad_cam.overlay_heatmap(input_image, cam)
-    
-    cv2.imwrite("gradcam_overlay.jpg", overlay)
-    print("Saved Grad-CAM overlay to gradcam_overlay.jpg")
-    
-    if overlay.shape[-1] == 3:  # Check for 3-channel images
-        overlay = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+
+    cv2.imwrite(save_path, overlay)
+    print(f"Saved Grad-CAM overlay to {save_path}")
+   
     # Plot the result
     plt.imshow(overlay)
     plt.axis("off")
@@ -108,6 +107,7 @@ def main():
     parser.add_argument('-img_path', required=True, help='path to image')
     parser.add_argument('-img_class', required=True, help='true label of image (0 - normal, 1 - pneumonia)')
     parser.add_argument('-img_size', default=(256,256), help="(width, height) size to resize input image to")
+    parser.add_argument('-gradcam_path', help='path to save image with overlayed heatmap')
 
     args = parser.parse_args()
 
@@ -123,6 +123,12 @@ def main():
         T.ToTensor(),
         T.Normalize(mean=[0.5], std=[0.5])
     ])
+    """image_transforms = T.Compose([T.RandomHorizontalFlip(),
+                T.RandomRotation(15),
+                T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+                T.Resize(args.img_size),
+                T.Grayscale(num_output_channels=1),  # Convert to grayscale (1 channel)
+                T.ToTensor()])"""
 
 
     image = Image.open(args.img_path).convert("L")  # Ensure grayscale
@@ -134,8 +140,14 @@ def main():
     target_layer = model.model.layer4[-1] if args.model_type == 'ResNET' else model.conv_stack[-3]
     target_class = int(args.img_class)
 
+    gradcam_img_path = os.path.join('gradcam', f'gradcam_{args.img_class}.jpg') if args.gradcam_path is None else args.gradcam_path
+
+    directory = os.path.dirname(gradcam_img_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
     # Generate and visualize Grad-CAM
-    visualize_gradcam(input_image, model, target_layer, target_class)
+    visualize_gradcam(input_image, model, target_layer, target_class, gradcam_img_path)
 
 
 if __name__ == "__main__":
