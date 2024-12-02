@@ -4,8 +4,9 @@ import argparse
 import torch
 from torch import nn
 from torch import optim
+from torch.utils.data import Dataset
 import wandb
-from transformers import ViTForImageClassification, ViTImageProcessor
+from transformers import ViTForImageClassification
 
 from train import Trainer
 from utils import *
@@ -42,26 +43,17 @@ class MyViT(nn.Module):
         return self.model(x)
     
     
-class PneumoniaDataset(Dataset):
-    def __init__(self, root_dir, processor, transform=None):
-        self.root_dir = root_dir
-        self.classes = sorted([cls for cls in os.listdir(root_dir) if cls not in [".DS_Store"]])
-        self.filepaths = [
-            (os.path.join(root, fname), label)
-            for label, cls in enumerate(self.classes)
-            for root, _, files in os.walk(os.path.join(root_dir, cls))
-            for fname in files if fname.endswith(".png") or fname.endswith(".jpeg")
-        ]
-        self.processor = processor
+class MyViTDataset(Dataset):
+    def __init__(self, root_dir, transform=None):
+        self.dataset = ImageFolder(root=root_dir, transform=None)
+        self.image_paths = [item[0] for item in self.dataset.samples]  # Extract file paths
         self.transform = transform
 
     def __len__(self):
         return len(self.filepaths)
 
     def __getitem__(self, idx):
-        filepath, label = self.filepaths[idx]
-        assert label in [0, 1], f"Invalid label {label} in dataset!"  # Add sanity check
-
+        filepath, label = self.image_paths[idx]
         image = Image.open(filepath).convert("RGB")  # Convert grayscale to RGB
         if self.transform:
             image = self.transform(image)
@@ -69,16 +61,7 @@ class PneumoniaDataset(Dataset):
     
 
 
-# Define the processor for ViT
-processor = ViTImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
 
-
-# Transform function for PyTorch DataLoader
-def transform(image):
-    # Use the Hugging Face processor to preprocess images
-    processed = processor(image, return_tensors="pt")
-    pixel_values = processed["pixel_values"].squeeze(0)  # Remove batch dimension
-    return pixel_values.contiguous()  # Ensure the tensor is contiguous
     
 
 def main():
@@ -97,22 +80,27 @@ def main():
     CONFIG = {'batch_size': int(args.batch_size),
               'n_epochs': int(args.n_epochs),
               'lr': float(args.lr),
-              'img_norm': args.img_norm,}
+              'img_norm': args.img_norm}
 
     assert(num_labels==2) # model applicable for binary classification
 
-    train_dataset = PneumoniaDataset(os.path.join(args.data_dir, 'train'), processor, transform=transform)
-    val_dataset = PneumoniaDataset(os.path.join(args.data_dir, 'val'), processor, transform=transform)
-    test_dataset = PneumoniaDataset(os.path.join(args.data_dir, 'test'), processor, transform=transform)
+    train_dataset = MyViTDataset(os.path.join(args.data_dir, 'train'), transform=vit_transform)
+    val_dataset = MyViTDataset(os.path.join(args.data_dir, 'val'), transform=vit_transform)
+    test_dataset = MyViTDataset(os.path.join(args.data_dir, 'test'), transform=vit_transform)
 
     train_dataloader = get_dataloader(train_dataset, CONFIG["batch_size"], train=False)
     val_dataloader = get_dataloader(val_dataset, CONFIG["batch_size"])
     test_dataloader = get_dataloader(test_dataset, CONFIG["batch_size"])
 
+    os.makedirs(args.out_dir, exist_ok=True)
+
+    model_name= f'ViT_{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}'
+    best_model_path = os.path.join(args.out_dir, f"{model_name}.pth")
+
 
     model = MyViT().to(DEVICE)
 
-    wandb.init(project="compmed", group='SimpleCNN')
+    wandb.init(project="compmed", group='ViT')
     wandb.watch(model, log="all", log_freq=10)
 
 

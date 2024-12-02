@@ -62,6 +62,8 @@ def main():
     parser.add_argument('-img_size', default=256)
     parser.add_argument('-img_norm', action='store_true')
     parser.add_argument('-freeze_params', action='store_true')
+    parser.add_argument('-tta', action='store_true', help='whether or not to do test time augmentation')
+
 
 
     args = parser.parse_args()
