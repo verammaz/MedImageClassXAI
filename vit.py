@@ -38,6 +38,7 @@ class MyViT(nn.Module):
             "google/vit-base-patch16-224-in21k",  # Pretrained on ImageNet-21k
             num_labels=2  # Binary classification for pneumonia detection
         )
+        self.name = 'vit'
 
     def forward(self, x):
         return self.model(x)
@@ -46,15 +47,17 @@ class MyViT(nn.Module):
 class MyViTDataset(Dataset):
     def __init__(self, root_dir, transform=None):
         self.dataset = ImageFolder(root=root_dir, transform=None)
-        self.image_paths = [item[0] for item in self.dataset.samples]  # Extract file paths
+        self.dataset.class_to_idx = {"NORMAL": 0, "PNEUMONIA": 1}
+        self.img_label = [item for item in self.dataset.samples]  # Extract file paths
+        self.targets = [int(item[1]) for item in self.dataset.samples]
         self.transform = transform
 
     def __len__(self):
-        return len(self.filepaths)
+        return len(self.img_label)
 
     def __getitem__(self, idx):
-        filepath, label = self.image_paths[idx]
-        image = Image.open(filepath).convert("RGB")  # Convert grayscale to RGB
+        image_path, label = self.img_label[idx]
+        image = Image.open(image_path).convert("RGB")  # Convert grayscale to RGB
         if self.transform:
             image = self.transform(image)
         return image, label
@@ -62,7 +65,6 @@ class MyViTDataset(Dataset):
 
 
 
-    
 
 def main():
     parser = argparse.ArgumentParser()
@@ -72,14 +74,18 @@ def main():
     parser.add_argument('-batch_size', default=32)
     parser.add_argument('-n_epochs', default=8)
     parser.add_argument('-lr', default=0.001)
+    parser.add_argument('-w_decay', default=1e-5)
     parser.add_argument('-img_channels', default=1)
     parser.add_argument('-img_norm', action='store_true')
+    parser.add_argument('-wandb_project', default = 'ChestXRayClass')
+
 
     args = parser.parse_args()
 
     CONFIG = {'batch_size': int(args.batch_size),
               'n_epochs': int(args.n_epochs),
               'lr': float(args.lr),
+              'w_decay': float(args.w_decay),
               'img_norm': args.img_norm}
 
     assert(num_labels==2) # model applicable for binary classification
@@ -87,25 +93,25 @@ def main():
     train_dataset = MyViTDataset(os.path.join(args.data_dir, 'train'), transform=vit_transform)
     val_dataset = MyViTDataset(os.path.join(args.data_dir, 'val'), transform=vit_transform)
     test_dataset = MyViTDataset(os.path.join(args.data_dir, 'test'), transform=vit_transform)
-
-    train_dataloader = get_dataloader(train_dataset, CONFIG["batch_size"], train=False)
+    
+    train_dataloader = get_dataloader(train_dataset, CONFIG["batch_size"], train=True)
     val_dataloader = get_dataloader(val_dataset, CONFIG["batch_size"])
     test_dataloader = get_dataloader(test_dataset, CONFIG["batch_size"])
 
     os.makedirs(args.out_dir, exist_ok=True)
 
-    model_name= f'ViT_{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}'
+    model_name= f'ViT_{CONFIG["lr"]}_b{CONFIG["batch_size"]}'
     best_model_path = os.path.join(args.out_dir, f"{model_name}.pth")
 
 
     model = MyViT().to(DEVICE)
 
-    wandb.init(project="compmed", group='ViT')
+    wandb.init(project=args.wandb_project, group='ViT')
     wandb.watch(model, log="all", log_freq=10)
 
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=CONFIG["lr"], weight_decay=1e-5)
+    optimizer = optim.AdamW(model.parameters(), lr=CONFIG["lr"], weight_decay=CONFIG['w_decay'])
 
     trainer = Trainer(model, optimizer, criterion, DEVICE)
     

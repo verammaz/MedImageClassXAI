@@ -37,6 +37,8 @@ class MyResNET(nn.Module):
 
         if freeze_params: self.freeze_params()
 
+        self.name = 'resnet'
+
     def freeze_params(self):
 
         for param in self.model.parameters():
@@ -59,10 +61,12 @@ def main():
     parser.add_argument('-batch_size', default=64)
     parser.add_argument('-n_epochs', default=8)
     parser.add_argument('-lr', default=0.001)
+    parser.add_argument('-w_decay', default=1e-5)
     parser.add_argument('-img_size', default=256)
     parser.add_argument('-img_norm', action='store_true')
     parser.add_argument('-freeze_params', action='store_true')
     parser.add_argument('-tta', action='store_true', help='whether or not to do test time augmentation')
+    parser.add_argument('-wandb_project', default = 'ChestXRayClass')
 
 
 
@@ -71,6 +75,7 @@ def main():
     CONFIG = {'batch_size': int(args.batch_size),
               'n_epochs': int(args.n_epochs),
               'lr': float(args.lr),
+              'w_decay': float(args.w_decay),
               'img_size': (int(args.img_size), int(args.img_size)),
               'img_norm': args.img_norm}
 
@@ -79,7 +84,7 @@ def main():
     
     train_transforms = get_train_transform(CONFIG['img_size'], CONFIG['img_norm'])
 
-    common_transforms = get_common_transform(CONFIG['img_size']) if not args.tta else train_transforms
+    common_transforms = get_common_transform(CONFIG['img_size'])
 
     train_dataset = get_dataset(args.data_dir, 'train', train_transforms)
     val_dataset = get_dataset(args.data_dir, 'val', common_transforms)
@@ -92,10 +97,11 @@ def main():
     model = MyResNET(args.freeze_params).to(DEVICE)
 
     # Define optimizer and loss function
-    optimizer = optim.Adam(model.parameters(), CONFIG["lr"])
     criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=CONFIG["lr"],  weight_decay=CONFIG['w_decay'])
 
-    wandb.init(project="compmed", group='ResNET')
+
+    wandb.init(project=args.wandb_project, group='ResNET')
     wandb.watch(model, log="all", log_freq=10)
 
     os.makedirs(args.out_dir, exist_ok=True)

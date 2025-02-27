@@ -34,6 +34,8 @@ class Trainer():
 
             # Forward propagation
             outputs = self.model(images)
+            if self.model.name == 'vit': # ViT model returns ImageClassifierOutput object
+                outputs = outputs.logits
             loss = self.criterion(outputs, labels)
 
             # Backward propagation

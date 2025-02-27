@@ -62,6 +62,8 @@ class SimpleCNN(nn.Module):
             nn.Dropout(0.5),
             nn.Linear(128, num_labels))
 
+        self.name = 'cnn'
+
 
     def forward(self, x):
         x = x.to(next(self.parameters()).device)
@@ -80,26 +82,28 @@ def main():
     parser.add_argument('-batch_size', default=32)
     parser.add_argument('-n_epochs', default=8)
     parser.add_argument('-lr', default=0.001)
+    parser.add_argument('-w_decay', default=1e-5)
     parser.add_argument('-img_size', default=256)
     parser.add_argument('-img_channels', default=1)
     parser.add_argument('-img_norm', action='store_true')
     parser.add_argument('-pretrained', help='path to pretrained model')
-    parser.add_argument('-tta', action='store_true', help='whether or not to do test time augmentation')
+    parser.add_argument('-wandb_project', default = 'ChestXRayClass')
 
     args = parser.parse_args()
 
     CONFIG = {'batch_size': int(args.batch_size),
               'n_epochs': int(args.n_epochs),
               'lr': float(args.lr),
+              'w_decay': float(args.w_decay),
               'img_size': (int(args.img_size), int(args.img_size)),
-              'img_norm': args.img_norm,}
+              'img_norm': args.img_norm}
 
     assert(num_labels==2) # model applicable for binary classification
 
 
     train_transforms = get_train_transform(CONFIG['img_size'], CONFIG['img_norm'])
 
-    common_transforms = get_common_transform(CONFIG['img_size']) if not args.tta else train_transforms
+    common_transforms = get_common_transform(CONFIG['img_size'])
 
     train_dataset = get_dataset(args.data_dir, 'train', train_transforms)
     val_dataset = get_dataset(args.data_dir, 'val', common_transforms)
@@ -144,12 +148,12 @@ def main():
     else:
         model.apply(init_weights)
 
-    wandb.init(project="compmed", group='SimpleCNN')
+    wandb.init(project=args.wandb_project, group='SimpleCNN')
     wandb.watch(model, log="all", log_freq=10)
 
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=CONFIG["lr"], weight_decay=1e-5)
+    optimizer = optim.AdamW(model.parameters(), lr=CONFIG["lr"], weight_decay=CONFIG['w_decay'])
 
     trainer = Trainer(model, optimizer, criterion, DEVICE)
     
