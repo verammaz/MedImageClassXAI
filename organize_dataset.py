@@ -12,13 +12,14 @@ def organize_dataset(original_dataset, new_dataset, split_ratios=(0.8, 0.1, 0.1)
     :param new_dataset: Path to the new dataset folder
     :param split_ratios: Tuple indicating the train, val, test split ratios
     """
-    assert sum(split_ratios) == 1.0, "Split ratios must sum to 1.0"
+    assert sum(split_ratios) == 1.0
     
     # Combine all data into a single list
     all_data = []
     class_names = os.listdir(os.path.join(original_dataset, 'train'))  # Assuming all sets have the same classes
 
     for class_name in class_names:
+        if class_name.startswith('.'): continue
         for folder in ['train', 'val', 'test']:
             class_folder = os.path.join(original_dataset, folder, class_name)
             if os.path.exists(class_folder):
