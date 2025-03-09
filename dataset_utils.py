@@ -10,9 +10,54 @@ from torchvision import transforms
 from tqdm import tqdm 
 import json
 import kagglehub
+import urllib.request
+import tarfile 
+
 
 def fetch_data_kaggle(data_dest):
-    return 
+    data_path = kagglehub.dataset_download("paultimothymooney/chest-xray-pneumonia", path=data_dest)
+    print("All files downloaded to:", data_path)
+
+
+def fetch_nih_data(data_dest, extract=True):
+    # source: https://nihcc.app.box.com/v/ChestXray-NIHCC/file/371647823217
+
+    # URLs for the zip files
+    links = [
+        'https://nihcc.box.com/shared/static/vfk49d74nhbxq3nqjg0900w5nvkorp5c.gz',
+        'https://nihcc.box.com/shared/static/i28rlmbvmfjbl8p2n3ril0pptcmcu9d1.gz',
+        'https://nihcc.box.com/shared/static/f1t00wrtdk94satdfb9olcolqx20z2jp.gz',
+        'https://nihcc.box.com/shared/static/0aowwzs5lhjrceb3qp67ahp0rd1l1etg.gz',
+        'https://nihcc.box.com/shared/static/v5e3goj22zr6h8tzualxfsqlqaygfbsn.gz',
+        'https://nihcc.box.com/shared/static/asi7ikud9jwnkrnkj99jnpfkjdes7l6l.gz',
+        'https://nihcc.box.com/shared/static/jn1b4mw4n6lnh74ovmcjb8y48h8xj07n.gz',
+        'https://nihcc.box.com/shared/static/tvpxmn7qyrgl0w8wfh9kqfjskv6nmm1j.gz',
+        'https://nihcc.box.com/shared/static/upyy3ml7qdumlgk2rfcvlb9k6gvqq2pj.gz',
+        'https://nihcc.box.com/shared/static/l6nilvfa9cg3s28tqv1qc1olm3gnz54p.gz',
+        'https://nihcc.box.com/shared/static/hhq8fkdgvcari67vfhs7ppg2w6ni4jze.gz',
+        'https://nihcc.box.com/shared/static/ioqwiy20ihqwyr8pf4c24eazhh281pbu.gz'
+    ]
+
+    for idx, link in enumerate(links):
+        fn = f'images_{idx+1:02d}.tar.gz'
+        file_path = os.path.join(data_dest, fn)
+        print(f'Downloading {fn} to {file_path} ...')
+        urllib.request.urlretrieve(link, file_path)
+
+        # extract archive if requested
+        if extract:
+            print(f'Extracting {fn} ...')
+            with tarfile.open(file_path, 'r:gz') as tar:
+                tar.extractall(path=data_dest)
+            
+            # (Optional) Remove the .tar.gz file after extraction
+            # os.remove(file_path)
+    
+    print("All files downloaded to:", data_dest)
+    
+    if extract:
+        print("All archives have been extracted.")
+
 
 
 def reorganize_dataset_kaggle(original_dataset, new_dataset, split_ratios=(0.8, 0.1, 0.1)):
@@ -82,7 +127,7 @@ def organize_dataset_nih(data_entry_file, data_path, split_ratios=(0.8, 0.1, 0.1
         # create new folder structure
         for split, split_data in zip(['train', 'val', 'test'], [train_data, val_data, test_data]):
             print(f"creating {split} folder...")
-            for img_path in split_data:
+            for img_path in tqdm(split_data):
                 split_class_dir = os.path.join(data_path, split, class_name)
                 os.makedirs(split_class_dir, exist_ok=True)
                 shutil.copy(img_path, os.path.join(split_class_dir, os.path.basename(img_path)))
