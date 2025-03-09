@@ -88,6 +88,9 @@ def main():
 
     args = parser.parse_args()
 
+    if not os.path.exists(args.train_dir): os.makedirs(args.train_dir)
+    if not os.path.exists(args.models_dir): os.makedirs(args.models_dir)
+
     if args.config_file is not None:
         with open(args.config_file, 'r') as f:
             config = json.load(f)
