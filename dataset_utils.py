@@ -12,6 +12,7 @@ import json
 import kagglehub
 
 def fetch_data_kaggle(data_dest):
+    return 
 
 
 def reorganize_dataset_kaggle(original_dataset, new_dataset, split_ratios=(0.8, 0.1, 0.1)):
