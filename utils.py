@@ -7,7 +7,7 @@ from transformers import ViTImageProcessor
 from PIL import Image
 
 
-def get_train_transform(img_size, norm=True): # what transformations make sense for chest xrays
+def get_train_transform(img_size, img_mean, img_std): # what transformations make sense for chest xrays
     transforms = [T.RandomHorizontalFlip(),
                     T.RandomRotation(15), # chest x rays always upright --> don't need
                     T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
@@ -15,8 +15,8 @@ def get_train_transform(img_size, norm=True): # what transformations make sense 
                     T.Grayscale(num_output_channels=1),  # Convert to grayscale (1 channel)
                     T.ToTensor()]
 
-    if norm:
-        transforms.append(T.Normalize(mean=[0.4881], std=[0.2442])) # stats of kaggle chest_xray data: paultimothymooney/chest-xray-pneumonia 
+    if img_mean is not None and img_std is not None:
+        transforms.append(T.Normalize(mean=[img_mean], std=[img_std])) # stats of train data
 
     return T.Compose(transforms)
 

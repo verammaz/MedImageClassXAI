@@ -1,19 +1,25 @@
 import os
+import json
 import argparse
+import random
+import string
 import torch
 from torch import nn
 from torch import optim
-import wandb
 from torchsummary import summary
 
 from train import Trainer
 from utils import *
 
-wandb.login()
 
 # Global Variables
-num_labels = 2
 lablel_to_str = {0: "normal", 1: "pneumonia"}
+DEFAULTS = {'batch_size': 64,
+              'n_epochs': 10,
+              'lr': 0.001,
+              'w_decay': 1e-5,
+              'img_size': (256, 256),
+              'img_norm': False}
 
 # Get device for training
 DEVICE = (
@@ -23,9 +29,6 @@ DEVICE = (
     if torch.backends.mps.is_available()
     else "cpu"
 )
-
-# Model configuration
-CONFIG = {}
 
 
 class SimpleCNN(nn.Module):
@@ -76,42 +79,51 @@ class SimpleCNN(nn.Module):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-data_dir', required=True, help='path to datasets')
+    parser.add_argument('-data_dir', required=True, help='path to train/val/test data folders')
     parser.add_argument('-v', action='store_true', help='verbose mode')
-    parser.add_argument('-out_dir', default='out', help='path where to save trained model parameters')
-    parser.add_argument('-batch_size', default=32)
-    parser.add_argument('-n_epochs', default=8)
-    parser.add_argument('-lr', default=0.001)
-    parser.add_argument('-w_decay', default=1e-5)
-    parser.add_argument('-img_size', default=256)
-    parser.add_argument('-img_channels', default=1)
-    parser.add_argument('-img_norm', action='store_true')
+    parser.add_argument('-train_dir', required=True, help='path to training logs')
+    parser.add_argument('-models_dir', required=True, help='path to where models saved')
+    parser.add_argument('-config_file', required=True, help='json file with training hyperparameters')
     parser.add_argument('-pretrained', help='path to pretrained model')
-    parser.add_argument('-wandb_project', default = 'ChestXRayClass')
 
     args = parser.parse_args()
 
-    CONFIG = {'batch_size': int(args.batch_size),
-              'n_epochs': int(args.n_epochs),
-              'lr': float(args.lr),
-              'w_decay': float(args.w_decay),
-              'img_size': (int(args.img_size), int(args.img_size)),
-              'img_norm': args.img_norm}
+    with open(args.config_file, 'r') as f:
+        config = json.load(f)
 
-    assert(num_labels==2) # model applicable for binary classification
+    # check hparams and fill missing with default values
+    hparams = ['batch_size', 'n_epochs', 'lr', 'w_decay', 'img_size', 'img_norm']
+    for hparam in hparams:
+        if hparam not in config:
+            print(f"hyperparameter {hparam} not specified, setting to default value: {hparam}={DEFAULTS[hparam]}")
+            config[hparam] = DEFAULTS[hparam]
+
+    
+    # if normalizing images, get mean and std stats
+    if config['img_norm']:
+
+        if not os.path.isfile(os.path.join(args.data_dir, "dataset_stats.json")):
+            from dataset_utils import get_dataset_stats
+            get_dataset_stats(args.data_dir)
+        
+        with open(os.path.join(args.data_dir, "dataset_stats.json"), 'r') as f:
+            stats = json.load(f)
+        
+        config['img_mean'] = stats['mean']
+        config['img_std'] = stats['std']
 
 
-    train_transforms = get_train_transform(CONFIG['img_size'], CONFIG['img_norm'])
+    train_transforms = get_train_transform(config['img_size'], img_mean=config.get('img_mean'), img_std=config.get('img_std'))
 
-    common_transforms = get_common_transform(CONFIG['img_size'])
+    common_transforms = get_common_transform(config['img_size'])
 
     train_dataset = get_dataset(args.data_dir, 'train', train_transforms)
     val_dataset = get_dataset(args.data_dir, 'val', common_transforms)
     test_dataset = get_dataset(args.data_dir, 'test', common_transforms)
 
-    train_dataloader = get_dataloader(train_dataset, CONFIG["batch_size"], train=True)
-    val_dataloader = get_dataloader(val_dataset, CONFIG["batch_size"])
-    test_dataloader = get_dataloader(test_dataset, CONFIG["batch_size"])
+    train_dataloader = get_dataloader(train_dataset, config["batch_size"], train=True)
+    val_dataloader = get_dataloader(val_dataset, config["batch_size"])
+    test_dataloader = get_dataloader(test_dataset, config["batch_size"])
 
     if args.v:
         print("Number of classes    : ", len(train_dataset.classes))
@@ -125,15 +137,15 @@ def main():
 
     os.makedirs(args.out_dir, exist_ok=True)
 
-    model_name= f'SimpleCNN_lr{CONFIG["lr"]}_img{CONFIG["img_size"][0]}_b{CONFIG["batch_size"]}'
+    model_name= f'SimpleCNN_lr{config["lr"]}_img{config["img_size"][0]}_b{config["batch_size"]}'
     if args.pretrained is not None: model_name += "_finetune" 
-    best_model_path = os.path.join(args.out_dir, f"{model_name}.pth")
+    best_model_path = os.path.join(args.models_dir, f"{model_name}.pth")
 
 
     model = SimpleCNN().to(DEVICE) 
 
     if args.v:
-        summary(model, (1, CONFIG["img_size"][0], CONFIG["img_size"][1]))
+        summary(model, (1, config["img_size"][0], config["img_size"][1]))
 
     def init_weights(m):
         if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -148,20 +160,30 @@ def main():
     else:
         model.apply(init_weights)
 
-    wandb.init(project=args.wandb_project, group='SimpleCNN')
-    wandb.watch(model, log="all", log_freq=10)
-
+    # generate run name
+    run_name = ''
+    chars = string.ascii_letters + string.digits
+    while True:
+        run_name = ''.join(random.choice(chars) for _ in range(10))
+        if not os.path.exists(os.path.join(args.train_dir, run_name)):
+            break
+    
+    # save hparams
+    config['run'] = run_name
+    config['model'] = model_name
+    with open(os.path.join(args.train_dir, run_name, 'hparams.json'), 'w') as f:
+        json.dumps(config, f)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=CONFIG["lr"], weight_decay=CONFIG['w_decay'])
+    optimizer = optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=config['w_decay'])
 
     trainer = Trainer(model, optimizer, criterion, DEVICE)
-    
-    trainer.train(CONFIG["n_epochs"], train_dataloader, val_dataloader, model_path=best_model_path)
+    run_path = os.path.join(args.train_dir, run_name)
+    trainer.train(config["n_epochs"], train_dataloader, val_dataloader, run_path=run_path, model_path=best_model_path)
 
     print("Done!\n")
 
-    trainer.final_evaluate(test_dataloader)
+    trainer.final_evaluate(test_dataloader, run_path)
 
 if __name__ == "__main__":
     main()

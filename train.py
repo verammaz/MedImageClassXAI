@@ -1,5 +1,6 @@
-import wandb
 import numpy as np
+import os
+import json
 from tqdm import tqdm 
 import torch
 
@@ -11,6 +12,15 @@ class Trainer():
         self.criterion = criterion
         self.device = device
         self.model_path = ''
+        self.run_path = ''
+        self.train_losses_examples = []
+        self.train_accs_examples = []
+        self.n_examples = []
+        self.epochs = []
+        self.train_losses_epoch = []
+        self.train_accs_epoch = []
+        self.val_losses_epoch = []
+        self.val_accs_epoch = []
 
 
 
@@ -57,7 +67,9 @@ class Trainer():
 
             batch_bar.update()
 
-            wandb.log({"n_examples": (idx+1)*batch_size + size * t, "train_loss": loss, "train_accuracy": num_correct/(batch_size*(idx+1))*100})
+            self.n_examples.append((idx+1)*batch_size + size * t)
+            self.train_losses_examples.append(loss)
+            self.train_accs_examples.append(num_correct/(batch_size*(idx+1))*100)
 
         batch_bar.close()
 
@@ -66,7 +78,7 @@ class Trainer():
 
         return acc, avg_loss
     
-    def train(self, n_epochs, train_dataloader, val_dataloader, model_path=None):
+    def train(self, n_epochs, train_dataloader, val_dataloader, run_path=None, model_path=None):
         print(f'Training on device: {self.device}')
 
         best_val_loss = np.inf
@@ -77,23 +89,18 @@ class Trainer():
             train_acc, train_loss = self.train_one_epoch(train_dataloader, t)
             print(f'Train Loss: {train_loss}, Train Accuracy: {train_acc}')
             
-            val_loss, val_acc, sens, spec = self.evaluate(val_dataloader, "Validation")
-            wandb.log({"val_specificity": spec, "val_sensitivity": sens})
+            val_loss, val_acc, _, _ = self.evaluate(val_dataloader, "Validation")
             print(f'Val Loss: {val_loss}, Val Accuracy: {val_acc}')
             
-            #test_loss, test_acc, sens, spec = evaluate(model, test_dataloader, "Test", criterion)
-            #wandb.log({"test_specificity": spec, "test_sensitivity": sens})
-            #print(f'Test Loss: {test_loss}, Test Accuracy: {test_acc}')
-            
-            wandb.log({"epoch": t, "train_loss_": train_loss, 
-                                    "val_loss_": val_loss, 
-                                    "train_acc_": train_acc, 
-                                    "val_acc_": val_acc, 
-                                    #"test_loss_": test_loss, 
-                                    #"test_acc_": test_acc
-                                    })
+       
+            self.epochs.append(t)
+            self.train_losses_epoch.append(train_loss)
+            self.train_accs_epoch.append(train_acc)
+            self.val_losses_epoch.append(val_loss)
+            self.val_accs_epoch.append(val_acc)
 
-            # Save the best model based on validation accuracy or loss
+
+            # save best model based on validation accuracy or loss
             if model_path is not None:
                 self.model_path = model_path
                 if val_loss < best_val_loss:
@@ -102,6 +109,19 @@ class Trainer():
                     torch.save(self.model.state_dict(), model_path)
                     print(f"Best model saved to {model_path}")
 
+        # save training logs
+        with open(os.path.join(run_path, 'train_losses.json'), 'w') as f:
+            json.dumps({'n_examples': self.n_examples,
+                        'loss_examples': self.train_losses_examples,
+                        'n_epochs': self.epochs,
+                        'losses_epochs': self.train_losses_epoch}, f)
+            
+        with open(os.path.join(run_path, 'train_accuracies.json'), 'w') as f:
+            json.dumps({'n_examples': self.n_examples,
+                        'accuracy_examples': self.train_accs_examples,
+                        'n_epochs': self.epochs,
+                        'accuracy_epochs': self.train_accs_epoch}, f)
+    
 
     def evaluate(self, dataloader, dataname, confusion_matrix=False):
         batch_size = dataloader.batch_size
@@ -158,7 +178,7 @@ class Trainer():
             return avg_loss, acc, sensitivity, specificity, cm
     
 
-    def final_evaluate(self, test_dataloader):
+    def final_evaluate(self, test_dataloader, run_path):
     
         # Reload the best model
         self.model.load_state_dict(torch.load(self.model_path))
@@ -169,4 +189,14 @@ class Trainer():
         print(f'Loss: {test_loss}, Accuracy: {test_acc}')
         print(f'Confusion Matrix\n: {cm}')
         print(f'Sensitivity: {sensitivity}, Specificity: {specificity}')
-        wandb.log({"Sensitivity": sensitivity, "Specificity": specificity})
+        
+        with open(os.path.join(run_path, 'final_performance.json'), 'w') as f:
+            json.dumps({'Loss': test_loss,
+                        'Accuracy': test_acc,
+                        'Sensitivity': sensitivity,
+                        'Specificity': specificity,
+                        'TP': cm[0][0],
+                        'FP': cm[0][1],
+                        'FN': cm[1][0],
+                        'TN': cm[1][1]})
+        

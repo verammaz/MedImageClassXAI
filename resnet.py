@@ -4,7 +4,6 @@ import torch
 from torch import nn
 from torch import optim
 from torchvision.models import resnet18
-import wandb
 
 from train import Trainer
 from utils import *
