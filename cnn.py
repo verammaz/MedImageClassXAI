@@ -175,6 +175,7 @@ def main():
     # save hparams
     config['run'] = run_name
     config['model'] = model_name
+    os.makedirs(os.path.join(args.train_dir, run_name))
     with open(os.path.join(args.train_dir, run_name, 'hparams.json'), 'w') as f:
         json.dumps(config, f)
 
