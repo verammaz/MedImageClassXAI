@@ -63,7 +63,7 @@ class SimpleCNN(nn.Module):
             nn.Linear(256, 128),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(128, num_labels))
+            nn.Linear(128, 2))
 
         self.name = 'cnn'
 
@@ -140,8 +140,6 @@ def main():
         print("No. of test images   : ", test_dataset.__len__())
         assert(train_dataset.class_to_idx == val_dataset.class_to_idx)
         print("Labels               : ", train_dataset.class_to_idx)
-
-    os.makedirs(args.out_dir, exist_ok=True)
 
     model_name= f'SimpleCNN_lr{config["lr"]}_img{config["img_size"][0]}_b{config["batch_size"]}'
     if args.pretrained is not None: model_name += "_finetune" 
