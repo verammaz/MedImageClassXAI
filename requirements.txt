@@ -5,5 +5,4 @@ pillow
 torchvision
 tqdm
 kagglehub
-tarfile
 transformers
