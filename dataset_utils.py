@@ -17,6 +17,7 @@ def reorganize_dataset_kaggle(original_dataset, new_dataset, split_ratios=(0.8, 
     class_names = os.listdir(os.path.join(original_dataset, 'train'))  # assuming all sets have the same classes
 
     for class_name in class_names:
+        print(f"processing {class_name} files...")
         
         # combine all data into a single list
         all_data = []
@@ -42,6 +43,7 @@ def reorganize_dataset_kaggle(original_dataset, new_dataset, split_ratios=(0.8, 
 
         # create new folder structure
         for split, split_data in zip(['train', 'val', 'test'], [train_data, val_data, test_data]):
+            print(f"creating {split} folder...\n")
             for img_path in split_data:
                 split_class_dir = os.path.join(new_dataset, split, class_name)
                 os.makedirs(split_class_dir, exist_ok=True)
@@ -63,6 +65,7 @@ def organize_dataset_nih(data_entry_file, data_path, split_ratios=(0.8, 0.1, 0.1
             normal_imgs.append(os.path.join(data_path, 'images', row['Image Index']))
     
     for class_name, img_list in [('PNEUMONIA', pneumonia_imgs), ('NORMAL', normal_imgs)]:
+        print(f"processing {class_name} files...")
         total_images = len(img_list)
         train_size = ceil(split_ratios[0] * total_images)
         val_size = ceil(split_ratios[1] * total_images)
@@ -73,6 +76,7 @@ def organize_dataset_nih(data_entry_file, data_path, split_ratios=(0.8, 0.1, 0.1
 
         # create new folder structure
         for split, split_data in zip(['train', 'val', 'test'], [train_data, val_data, test_data]):
+            print(f"creating {split} folder...\n")
             for img_path in split_data:
                 split_class_dir = os.path.join(data_path, split, class_name)
                 os.makedirs(split_class_dir, exist_ok=True)
