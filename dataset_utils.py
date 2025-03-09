@@ -9,6 +9,10 @@ import torch
 from torchvision import transforms
 from tqdm import tqdm 
 import json
+import kagglehub
+
+def fetch_data_kaggle(data_dest):
+
 
 def reorganize_dataset_kaggle(original_dataset, new_dataset, split_ratios=(0.8, 0.1, 0.1)):
 
@@ -43,12 +47,12 @@ def reorganize_dataset_kaggle(original_dataset, new_dataset, split_ratios=(0.8, 
 
         # create new folder structure
         for split, split_data in zip(['train', 'val', 'test'], [train_data, val_data, test_data]):
-            print(f"creating {split} folder...\n")
+            print(f"creating {split} folder...")
             for img_path in split_data:
                 split_class_dir = os.path.join(new_dataset, split, class_name)
                 os.makedirs(split_class_dir, exist_ok=True)
                 shutil.copy(img_path, os.path.join(split_class_dir, os.path.basename(img_path)))
-
+        print('\n')
  
 
 
@@ -59,9 +63,9 @@ def organize_dataset_nih(data_entry_file, data_path, split_ratios=(0.8, 0.1, 0.1
     pneumonia_imgs, normal_imgs = [], []
 
     for _, row in data_entry_df.iterrows():
-        if 'Pneumonia' in row['Finding']:
+        if 'Pneumonia' in row['Finding Labels']:
             pneumonia_imgs.append(os.path.join(data_path, 'images', row['Image Index']))
-        elif 'No Finding' in row['Finding']:
+        elif 'No Finding' in row['Finding Labels']:
             normal_imgs.append(os.path.join(data_path, 'images', row['Image Index']))
     
     for class_name, img_list in [('PNEUMONIA', pneumonia_imgs), ('NORMAL', normal_imgs)]:
@@ -76,13 +80,13 @@ def organize_dataset_nih(data_entry_file, data_path, split_ratios=(0.8, 0.1, 0.1
 
         # create new folder structure
         for split, split_data in zip(['train', 'val', 'test'], [train_data, val_data, test_data]):
-            print(f"creating {split} folder...\n")
+            print(f"creating {split} folder...")
             for img_path in split_data:
                 split_class_dir = os.path.join(data_path, split, class_name)
                 os.makedirs(split_class_dir, exist_ok=True)
                 shutil.copy(img_path, os.path.join(split_class_dir, os.path.basename(img_path)))
 
-
+        print('\n')
 
 
 
