@@ -177,7 +177,7 @@ def main():
     config['model'] = model_name
     os.makedirs(os.path.join(args.train_dir, run_name))
     with open(os.path.join(args.train_dir, run_name, 'hparams.json'), 'w') as f:
-        json.dumps(config, f)
+        json.dump(config, f)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=config['w_decay'])

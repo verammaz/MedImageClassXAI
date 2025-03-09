@@ -111,13 +111,13 @@ class Trainer():
 
         # save training logs
         with open(os.path.join(run_path, 'train_losses.json'), 'w') as f:
-            json.dumps({'n_examples': self.n_examples,
+            json.dump({'n_examples': self.n_examples,
                         'loss_examples': self.train_losses_examples,
                         'n_epochs': self.epochs,
                         'losses_epochs': self.train_losses_epoch}, f)
             
         with open(os.path.join(run_path, 'train_accuracies.json'), 'w') as f:
-            json.dumps({'n_examples': self.n_examples,
+            json.dump({'n_examples': self.n_examples,
                         'accuracy_examples': self.train_accs_examples,
                         'n_epochs': self.epochs,
                         'accuracy_epochs': self.train_accs_epoch}, f)
@@ -191,12 +191,12 @@ class Trainer():
         print(f'Sensitivity: {sensitivity}, Specificity: {specificity}')
         
         with open(os.path.join(run_path, 'final_performance.json'), 'w') as f:
-            json.dumps({'Loss': test_loss,
+            json.dump({'Loss': test_loss,
                         'Accuracy': test_acc,
                         'Sensitivity': sensitivity,
                         'Specificity': specificity,
                         'TP': cm[0][0],
                         'FP': cm[0][1],
                         'FN': cm[1][0],
-                        'TN': cm[1][1]})
+                        'TN': cm[1][1]}, f)
         
