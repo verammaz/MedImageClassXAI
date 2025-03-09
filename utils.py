@@ -7,9 +7,9 @@ from transformers import ViTImageProcessor
 from PIL import Image
 
 
-def get_train_transform(img_size, norm=True):
+def get_train_transform(img_size, norm=True): # what transformations make sense for chest xrays
     transforms = [T.RandomHorizontalFlip(),
-                    T.RandomRotation(15),
+                    T.RandomRotation(15), # chest x rays always upright --> don't need
                     T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
                     T.Resize(img_size),
                     T.Grayscale(num_output_channels=1),  # Convert to grayscale (1 channel)
