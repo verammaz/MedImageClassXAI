@@ -83,13 +83,16 @@ def main():
     parser.add_argument('-v', action='store_true', help='verbose mode')
     parser.add_argument('-train_dir', required=True, help='path to training logs')
     parser.add_argument('-models_dir', required=True, help='path to where models saved')
-    parser.add_argument('-config_file', required=True, help='json file with training hyperparameters')
+    parser.add_argument('-config_file', required=False, help='json file with training hyperparameters')
     parser.add_argument('-pretrained', help='path to pretrained model')
 
     args = parser.parse_args()
 
-    with open(args.config_file, 'r') as f:
-        config = json.load(f)
+    if args.config_file is not None:
+        with open(args.config_file, 'r') as f:
+            config = json.load(f)
+    else:
+        config = dict()
 
     # check hparams and fill missing with default values
     hparams = ['batch_size', 'n_epochs', 'lr', 'w_decay', 'img_size', 'img_norm']
